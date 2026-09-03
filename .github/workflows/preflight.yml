@@ -1,0 +1,55 @@
+# Fork-only preflight for the targets this branch adds. The Apple side of the
+# change is about flags the buildbot's image sets, which cannot be replayed
+# here; a native macOS build is the closest check that the crate itself is
+# fine for those targets.
+name: preflight (32-bit + apple)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - preflight-**
+
+jobs:
+  cross:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: i686-unknown-linux-gnu
+            packages: gcc-multilib
+            artifact: target/i686-unknown-linux-gnu/release/libholani.so
+          - target: i686-pc-windows-gnu
+            packages: gcc-mingw-w64-i686
+            artifact: target/i686-pc-windows-gnu/release/holani.dll
+    name: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ${{ matrix.packages }}
+      - run: rustup target add ${{ matrix.target }}
+      - name: Build
+        env:
+          CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER: i686-w64-mingw32-gcc
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Check
+        run: |
+          ls -l "${{ matrix.artifact }}"
+          file "${{ matrix.artifact }}"
+
+  apple:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+    name: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup target add ${{ matrix.target }}
+      - name: Build with the flags the job now sets
+        env:
+          RUSTFLAGS: -Clink-arg=-undefined -Clink-arg=dynamic_lookup
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Check
+        run: file target/${{ matrix.target }}/release/libholani.dylib
