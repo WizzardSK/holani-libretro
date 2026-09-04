@@ -58,16 +58,46 @@ libretro-build-linux-aarch64:
     - apt-get update -qy && apt-get install -yq gcc-aarch64-linux-gnu
     - rustup target add aarch64-unknown-linux-gnu
 
+# Linux 32-bit
+# Same story as the aarch64 job above: no rust-linux-i686.yml template, and the
+# rust image is amd64, so the target and the 32-bit runtime go in here.
+libretro-build-linux-i686:
+  extends:
+    - .libretro-rust-linux-x64
+    - .core-defs
+  variables:
+    TARGET_ARCH: i686-unknown-linux-gnu
+  before_script:
+    - apt-get update -qy && apt-get install -yq gcc-multilib
+    - rustup target add i686-unknown-linux-gnu
+
+# Windows 32-bit
+libretro-build-windows-i686:
+  extends:
+    - .libretro-rust-windows-x64
+    - .core-defs
+  variables:
+    TARGET_ARCH: i686-pc-windows-gnu
+    STRIP: i686-w64-mingw32-strip
+    CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER: i686-w64-mingw32-gcc
+  before_script:
+    - apt-get update -qy && apt-get install -yq gcc-mingw-w64-i686
+    - rustup target add i686-pc-windows-gnu
+
 # MacOS 64-bit
 libretro-build-osx-x64:
   extends:
     - .libretro-rust-osx-x86_64-default
     - .core-defs
+  variables:
+    CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS: -Clink-arg=-undefined -Clink-arg=dynamic_lookup
 # MacOS ARM 64-bit
 libretro-build-osx-arm64:
   extends:
     - .libretro-rust-osx-arm64-default
     - .core-defs
+  variables:
+    CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS: -Clink-arg=-undefined -Clink-arg=dynamic_lookup
 
 # Android ARMv7a
 android-armeabi-v7a:
@@ -95,12 +125,16 @@ libretro-build-ios-arm64:
   extends:
     - .libretro-rust-ios-arm64-default
     - .core-defs
+  variables:
+    CARGO_TARGET_AARCH64_APPLE_IOS_RUSTFLAGS: -Clink-arg=-undefined -Clink-arg=dynamic_lookup
 
 # tvOS
 libretro-build-tvos-arm64:
   extends:
     - .libretro-rust-tvos-arm64-default
     - .core-defs
+  variables:
+    CARGO_TARGET_AARCH64_APPLE_TVOS_RUSTFLAGS: -Clink-arg=-undefined -Clink-arg=dynamic_lookup
 
 # webOS
 libretro-build-webos-armv7a:
