@@ -27,10 +27,16 @@ jobs:
       - name: GNU dlltool from apt - rustc calls <triple>-dlltool for raw-dylib,
         # and llvm-dlltool does not stand in for it
         run: sudo apt-get update -qy && sudo apt-get install -yq binutils-mingw-w64-i686
+      - name: an empty libgcc.a - rust's std link line asks for -lgcc, and
+        # llvm-mingw has the builtins in compiler-rt instead
+        run: |
+          mkdir -p /opt/gcc-stub
+          /opt/${LLVM_MINGW}/bin/llvm-ar crs /opt/gcc-stub/libgcc.a
       - run: rustup target add i686-pc-windows-gnu
       - name: build
         env:
           CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER: /opt/llvm-mingw-20230320-msvcrt-ubuntu-18.04-x86_64/bin/i686-w64-mingw32-clang
+          CARGO_TARGET_I686_PC_WINDOWS_GNU_RUSTFLAGS: -L /opt/gcc-stub
         run: cargo build --release --target i686-pc-windows-gnu
       - name: what came out
         run: |
