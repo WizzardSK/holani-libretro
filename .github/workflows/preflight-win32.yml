@@ -1,7 +1,9 @@
-# Fork-only: libretro-build-windows-i686 fails on the buildbot but not on a
-# stock ubuntu runner, so this runs the same three commands on the bases the
-# buildbot's rust image could plausibly be, to find which one breaks.
-name: preflight (windows i686 across bases)
+# Fork-only. The buildbot's libretro-build-windows-i686 dies at link time on
+# undefined _Unwind_Resume / _Unwind_RaiseException. Rust's i686-pc-windows-gnu
+# std unwinds with DWARF and wants posix threads (the link line asks for
+# -l:libpthread.a); Debian's default i686-w64-mingw32-gcc alternative is the
+# win32/SJLJ one. This shows both flavours side by side.
+name: preflight (windows i686, sjlj vs dwarf)
 
 on:
   workflow_dispatch:
@@ -10,25 +12,25 @@ on:
       - preflight-**
 
 jobs:
-  replay:
+  flavour:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        base: [debian:bookworm, ubuntu:22.04]
-    name: ${{ matrix.base }}
+        linker: [i686-w64-mingw32-gcc-win32, i686-w64-mingw32-gcc-posix]
+    name: ${{ matrix.linker }}
     steps:
       - uses: actions/checkout@v4
-      - name: build in ${{ matrix.base }}
+      - name: build with ${{ matrix.linker }}
         run: |
           docker run --rm -v "$PWD":/src -w /src \
-            -e CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER=i686-w64-mingw32-gcc \
-            -e DEBIAN_FRONTEND=noninteractive ${{ matrix.base }} sh -c '
+            -e CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER=${{ matrix.linker }} \
+            -e DEBIAN_FRONTEND=noninteractive debian:bookworm sh -c '
               apt-get update -qy &&
-              apt-get install -yq curl build-essential gcc-mingw-w64-i686 clang libclang-dev pkg-config &&
+              apt-get install -yq curl build-essential clang libclang-dev pkg-config \
+                gcc-mingw-w64-i686-win32 gcc-mingw-w64-i686-posix &&
               curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal &&
               . $HOME/.cargo/env &&
-              rustc --version && i686-w64-mingw32-gcc --version | head -1 &&
               rustup target add i686-pc-windows-gnu &&
-              cargo build --release --target i686-pc-windows-gnu &&
+              cargo build --release --target i686-pc-windows-gnu 2>&1 | tail -25 &&
               ls -l target/i686-pc-windows-gnu/release/holani.dll'
