@@ -32,6 +32,9 @@ jobs:
         run: |
           mkdir -p /opt/gcc-stub
           /opt/${LLVM_MINGW}/bin/llvm-ar crs /opt/gcc-stub/libgcc.a
+          find /opt/${LLVM_MINGW} -name 'libunwind.a' -path '*i686*'
+          cp $(find /opt/${LLVM_MINGW} -name 'libunwind.a' -path '*i686*' | head -1) /opt/gcc-stub/libgcc_eh.a
+          ls -l /opt/gcc-stub/
       - run: rustup target add i686-pc-windows-gnu
       - name: build
         env:
