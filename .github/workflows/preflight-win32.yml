@@ -24,8 +24,9 @@ jobs:
             https://github.com/mstorsjo/llvm-mingw/releases/download/20230320/${LLVM_MINGW}.tar.xz
           sudo tar xJf /tmp/llvm-mingw.tar.xz -C /opt
           /opt/${LLVM_MINGW}/bin/i686-w64-mingw32-clang --version | head -2
-      - name: put it on PATH (rustc calls <triple>-dlltool itself)
-        run: echo "/opt/${LLVM_MINGW}/bin" >> $GITHUB_PATH
+      - name: GNU dlltool from apt - rustc calls <triple>-dlltool for raw-dylib,
+        # and llvm-dlltool does not stand in for it
+        run: sudo apt-get update -qy && sudo apt-get install -yq binutils-mingw-w64-i686
       - run: rustup target add i686-pc-windows-gnu
       - name: build
         env:
