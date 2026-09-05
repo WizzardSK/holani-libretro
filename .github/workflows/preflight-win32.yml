@@ -1,6 +1,8 @@
-# Fork-only. The buildbot's rust image is Ubuntu bionic; this checks what its
-# i686 mingw does with Rust's i686-pc-windows-gnu std.
-name: preflight (windows i686 on bionic)
+# Fork-only: can the 32-bit Windows core be built at all on a bionic-era host?
+# GCC's i686 mingw there is the SJLJ one and rust's std wants DWARF, so this
+# tries llvm-mingw instead - it carries its own libunwind, which has the
+# symbols rust's std asks for, and mstorsjo publishes an 18.04-hosted build.
+name: preflight (windows i686 via llvm-mingw)
 
 on:
   workflow_dispatch:
@@ -8,24 +10,29 @@ on:
     branches:
       - preflight-**
 
+env:
+  LLVM_MINGW: llvm-mingw-20230320-msvcrt-ubuntu-18.04-x86_64
+
 jobs:
-  bionic:
+  llvm-mingw:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: bionic, the way the image is
+      - name: fetch llvm-mingw
         run: |
-          docker run --rm -v "$PWD":/src -w /src \
-            -e CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER=i686-w64-mingw32-gcc \
-            -e DEBIAN_FRONTEND=noninteractive ubuntu:18.04 sh -c '
-              sed -i s/archive.ubuntu.com/old-releases.ubuntu.com/g /etc/apt/sources.list &&
-              sed -i s/security.ubuntu.com/old-releases.ubuntu.com/g /etc/apt/sources.list &&
-              apt-get update -qy &&
-              apt-get install -yq curl build-essential clang libclang-dev pkg-config gcc-mingw-w64-i686 &&
-              echo "=== which exception model ===" &&
-              i686-w64-mingw32-gcc -v 2>&1 | tail -2 &&
-              (i686-w64-mingw32-gcc-posix -v 2>&1 | tail -2 || echo "no -posix variant") &&
-              curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal &&
-              . $HOME/.cargo/env &&
-              rustup target add i686-pc-windows-gnu &&
-              cargo build --release --target i686-pc-windows-gnu 2>&1 | tail -20'
+          curl -sSL -o /tmp/llvm-mingw.tar.xz \
+            https://github.com/mstorsjo/llvm-mingw/releases/download/20230320/${LLVM_MINGW}.tar.xz
+          sudo tar xJf /tmp/llvm-mingw.tar.xz -C /opt
+          /opt/${LLVM_MINGW}/bin/i686-w64-mingw32-clang --version | head -2
+      - run: rustup target add i686-pc-windows-gnu
+      - name: build
+        env:
+          CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER: /opt/llvm-mingw-20230320-msvcrt-ubuntu-18.04-x86_64/bin/i686-w64-mingw32-clang
+          LIBCLANG_PATH: /opt/llvm-mingw-20230320-msvcrt-ubuntu-18.04-x86_64/lib
+        run: cargo build --release --target i686-pc-windows-gnu
+      - name: what came out
+        run: |
+          ls -l target/i686-pc-windows-gnu/release/holani.dll
+          file target/i686-pc-windows-gnu/release/holani.dll
+          /opt/${LLVM_MINGW}/bin/llvm-strip --strip-unneeded target/i686-pc-windows-gnu/release/holani.dll
+          ls -l target/i686-pc-windows-gnu/release/holani.dll
