@@ -1,0 +1,36 @@
+# Fork-only: replays libretro-build-windows-i686 inside the buildbot's own
+# image, which is the difference between it and the ubuntu runner the earlier
+# preflight used.
+name: preflight (windows i686 in the buildbot image)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - preflight-**
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    container: git.libretro.com:5050/libretro-infrastructure/libretro-build-rust
+    steps:
+      - uses: actions/checkout@v4
+      - name: what this image is
+        run: |
+          cat /etc/os-release | head -3
+          rustc --version || true
+          cargo --version || true
+      - name: the job's before_script
+        run: |
+          apt-get update -qy && apt-get install -yq gcc-mingw-w64-i686
+          rustup target add i686-pc-windows-gnu
+          i686-w64-mingw32-gcc --version | head -1
+      - name: the job's script
+        env:
+          CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER: i686-w64-mingw32-gcc
+        run: cargo build --release --target i686-pc-windows-gnu
+      - name: the job's after_script
+        run: |
+          mv target/i686-pc-windows-gnu/release/holani.dll holani_libretro.dll
+          i686-w64-mingw32-strip --strip-unneeded holani_libretro.dll
+          file holani_libretro.dll
