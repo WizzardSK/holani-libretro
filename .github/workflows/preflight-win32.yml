@@ -31,7 +31,6 @@ jobs:
       - name: build
         env:
           CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER: /opt/llvm-mingw-20230320-msvcrt-ubuntu-18.04-x86_64/bin/i686-w64-mingw32-clang
-          LIBCLANG_PATH: /opt/llvm-mingw-20230320-msvcrt-ubuntu-18.04-x86_64/lib
         run: cargo build --release --target i686-pc-windows-gnu
       - name: what came out
         run: |
