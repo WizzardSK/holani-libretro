@@ -1,9 +1,6 @@
-# Fork-only. The buildbot's libretro-build-windows-i686 dies at link time on
-# undefined _Unwind_Resume / _Unwind_RaiseException. Rust's i686-pc-windows-gnu
-# std unwinds with DWARF and wants posix threads (the link line asks for
-# -l:libpthread.a); Debian's default i686-w64-mingw32-gcc alternative is the
-# win32/SJLJ one. This shows both flavours side by side.
-name: preflight (windows i686, sjlj vs dwarf)
+# Fork-only. The buildbot's rust image is Ubuntu bionic; this checks what its
+# i686 mingw does with Rust's i686-pc-windows-gnu std.
+name: preflight (windows i686 on bionic)
 
 on:
   workflow_dispatch:
@@ -12,25 +9,23 @@ on:
       - preflight-**
 
 jobs:
-  flavour:
+  bionic:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        linker: [i686-w64-mingw32-gcc-win32, i686-w64-mingw32-gcc-posix]
-    name: ${{ matrix.linker }}
     steps:
       - uses: actions/checkout@v4
-      - name: build with ${{ matrix.linker }}
+      - name: bionic, the way the image is
         run: |
           docker run --rm -v "$PWD":/src -w /src \
-            -e CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER=${{ matrix.linker }} \
-            -e DEBIAN_FRONTEND=noninteractive debian:bookworm sh -c '
+            -e CARGO_TARGET_I686_PC_WINDOWS_GNU_LINKER=i686-w64-mingw32-gcc \
+            -e DEBIAN_FRONTEND=noninteractive ubuntu:18.04 sh -c '
+              sed -i s/archive.ubuntu.com/old-releases.ubuntu.com/g /etc/apt/sources.list &&
+              sed -i s/security.ubuntu.com/old-releases.ubuntu.com/g /etc/apt/sources.list &&
               apt-get update -qy &&
-              apt-get install -yq curl build-essential clang libclang-dev pkg-config \
-                gcc-mingw-w64-i686-win32 gcc-mingw-w64-i686-posix &&
+              apt-get install -yq curl build-essential clang libclang-dev pkg-config gcc-mingw-w64-i686 &&
+              echo "=== which exception model ===" &&
+              i686-w64-mingw32-gcc -v 2>&1 | tail -2 &&
+              (i686-w64-mingw32-gcc-posix -v 2>&1 | tail -2 || echo "no -posix variant") &&
               curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal &&
               . $HOME/.cargo/env &&
               rustup target add i686-pc-windows-gnu &&
-              cargo build --release --target i686-pc-windows-gnu 2>&1 | tail -25 &&
-              ls -l target/i686-pc-windows-gnu/release/holani.dll'
+              cargo build --release --target i686-pc-windows-gnu 2>&1 | tail -20'
